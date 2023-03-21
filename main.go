@@ -26,7 +26,7 @@ func getBooks(c *gin.Context) {
 }
 
 func bookByID(c *gin.Context) {
-	id := c.Param("id")
+	id := c.Param("id") //extract the id parameter from the URL path
 	book, err := getBookById(id)
 
 	if err != nil {
@@ -36,10 +36,33 @@ func bookByID(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, book)
 }
 
-func getBookById(id string) (*book, error) {
+func checkoutBook(c *gin.Context) {
+	id, ok := c.GetQuery("id")
+
+	if !ok {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "Missing id query parameter."})
+		return
+	}
+	book, err := getBookById(id)
+
+	if err != nil {
+		c.IndentedJSON(http.StatusNotFound, gin.H{"message": "Book not found."})
+		return
+	}
+
+	if book.Quantity <= 0 {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "Book not available"})
+		return
+	}
+
+	book.Quantity -= 1
+	c.IndentedJSON(http.StatusOK, book)
+}
+
+func getBookById(id string) (*book, error) { //*book means that we will return a pointer to a value of type "book"
 	for i, b := range books {
 		if b.ID == id {
-			return &books[i], nil
+			return &books[i], nil //&books[i] is a pointer to the i-th element of the "books" slice.
 		}
 	}
 	return nil, errors.New("book not found")
@@ -54,10 +77,30 @@ func createBook(c *gin.Context) {
 	c.IndentedJSON(http.StatusCreated, newBook)
 }
 
+func returnBook(c *gin.Context) {
+	id, ok := c.GetQuery("id")
+
+	if !ok {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "Missing id query parameter."})
+		return
+	}
+	book, err := getBookById(id)
+
+	if err != nil {
+		c.IndentedJSON(http.StatusNotFound, gin.H{"message": "Book not found."})
+		return
+	}
+
+	book.Quantity += 1
+	c.IndentedJSON(http.StatusOK, book)
+}
+
 func main() {
 	router := gin.Default()
 	router.GET("/books", getBooks) //curl localhost:8080/books
 	router.GET("books/:id", bookByID)
-	router.POST("/books", createBook) //curl localhost:8080/books --include --header "Content-Type: application/json" -d @body.json --request "POST"
+	router.POST("/books", createBook)       //curl localhost:8080/books --include --header "Content-Type: application/json" -d @body.json --request "POST"
+	router.PATCH("/checkout", checkoutBook) //curl localhost:8080/checkout? --request "PATCH"
+	router.PATCH("/return", returnBook)
 	router.Run("localhost:8080")
 }
